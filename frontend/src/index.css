@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  --color-board-bg: #0f172a;
+  --color-glass-bg: rgba(255, 255, 255, 0.05);
+  --color-glass-border: rgba(255, 255, 255, 0.1);
+  --color-card-bg: rgba(30, 41, 59, 0.8);
+  --color-card-hover: rgba(30, 41, 59, 1);
+}
+
+body {
+  @apply bg-board-bg text-slate-200 antialiased min-h-screen overflow-x-hidden;
+  background-image: radial-gradient(circle at top right, rgba(56, 189, 248, 0.1), transparent 400px),
+    radial-gradient(circle at bottom left, rgba(168, 85, 247, 0.1), transparent 400px);
+  background-attachment: fixed;
+}
+
+@utility glass {
+  @apply bg-glass-bg backdrop-blur-md border border-glass-border shadow-xl;
+}
+
+@utility glass-card {
+  @apply bg-card-bg backdrop-blur-sm border border-glass-border shadow-lg transition-all duration-200 hover:bg-card-hover hover:border-slate-600;
+}
+
+@utility hide-scrollbar {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
