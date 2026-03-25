@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { API_URL } from './auth';
+import { API_URL } from './index';
 
 let socket: Socket | null = null;
 
@@ -11,7 +11,7 @@ export const connectSocket = (token: string, boardId: string) => {
     auth: { token },
   });
 
-  socket.emit('joinBoard', { boardId, token });
+  socket.emit('joinBoard', { boardId });
   return socket;
 };
 

@@ -28,9 +28,10 @@ export const Card = ({ card }: CardProps) => {
   };
 
   return (
-    <div
+    <article
       ref={setNodeRef}
       style={style}
+      aria-label={`Карточка: ${card.title}`}
       className={clsx(
         "glass-card rounded-xl p-4 mb-3 group flex items-start gap-2 select-none relative",
         isDragging && "opacity-50 ring-2 ring-blue-500 z-50 scale-105",
@@ -47,6 +48,7 @@ export const Card = ({ card }: CardProps) => {
         {...attributes}
         {...listeners}
         className="mt-1 cursor-grab text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"
+        aria-hidden="true"
       >
         <GripVertical size={16} />
       </div>
@@ -56,6 +58,6 @@ export const Card = ({ card }: CardProps) => {
           <p className="text-slate-400 text-xs mt-1.5 leading-relaxed">{card.description}</p>
         )}
       </div>
-    </div>
+    </article>
   );
 };

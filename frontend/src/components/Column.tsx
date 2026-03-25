@@ -9,10 +9,9 @@ import clsx from 'clsx';
 
 interface ColumnProps {
   column: ColumnType;
-  token: string;
 }
 
-export const Column = ({ column, token }: ColumnProps) => {
+export const Column = ({ column }: ColumnProps) => {
   const [newCardTitle, setNewCardTitle] = useState('');
   const [newCardDesc, setNewCardDesc] = useState('');
   const [isAdding, setIsAdding] = useState(false);
@@ -27,7 +26,7 @@ export const Column = ({ column, token }: ColumnProps) => {
     e.preventDefault();
     if (!newCardTitle.trim()) return;
 
-    await addCard(token, column.id, newCardTitle.trim(), newCardDesc.trim());
+    await addCard(column.id, newCardTitle.trim(), newCardDesc.trim());
     setNewCardTitle('');
     setNewCardDesc('');
     setIsAdding(false);
@@ -36,12 +35,13 @@ export const Column = ({ column, token }: ColumnProps) => {
   const cardIds = column.cards?.map((c) => c.id) || [];
 
   return (
-    <div
+    <section
       className="glass rounded-2xl p-4 flex flex-col w-80 shrink-0 max-h-[calc(100vh-120px)]"
+      aria-label={`Колонка: ${column.title}`}
     >
       <div className="flex items-center justify-between mb-4 px-2">
         <h3 className="font-bold text-lg text-slate-100 uppercase tracking-wider text-sm">{column.title}</h3>
-        <span className="bg-slate-800 text-slate-300 text-xs px-2 py-1 rounded-full font-medium">
+        <span className="bg-slate-800 text-slate-300 text-xs px-2 py-1 rounded-full font-medium" aria-label={`Карточек: ${column.cards?.length || 0}`}>
           {column.cards?.length || 0}
         </span>
       </div>
@@ -66,14 +66,16 @@ export const Column = ({ column, token }: ColumnProps) => {
         {isAdding ? (
           <form onSubmit={handleCreateCard} className="space-y-3">
             <input
-              placeholder="Card title..."
+              placeholder="Название карточки..."
+              aria-label="Название новой карточки"
               value={newCardTitle}
               onChange={(e) => setNewCardTitle(e.target.value)}
               className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-slate-500"
               autoFocus
             />
             <textarea
-              placeholder="Description (optional)"
+              placeholder="Описание (необязательно)"
+              aria-label="Описание карточки"
               value={newCardDesc}
               onChange={(e) => setNewCardDesc(e.target.value)}
               rows={2}
@@ -82,6 +84,7 @@ export const Column = ({ column, token }: ColumnProps) => {
             <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
+                aria-label="Отменить"
                 className="text-slate-400 hover:text-slate-200 p-1.5"
                 onClick={() => setIsAdding(false)}
               >
@@ -92,7 +95,7 @@ export const Column = ({ column, token }: ColumnProps) => {
                 disabled={!newCardTitle.trim()}
                 className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
               >
-                Add Card
+                Добавить
               </button>
             </div>
           </form>
@@ -100,11 +103,12 @@ export const Column = ({ column, token }: ColumnProps) => {
           <button
             className="w-full flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 hover:bg-white/5 py-2 rounded-xl transition-all font-medium text-sm border border-transparent hover:border-white/10"
             onClick={() => setIsAdding(true)}
+            type="button"
           >
-            <Plus size={16} /> Add a card
+            <Plus size={16} /> Добавить карточку
           </button>
         )}
       </div>
-    </div>
+    </section>
   );
 };

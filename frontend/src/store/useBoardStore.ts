@@ -1,3 +1,4 @@
+import { toast } from 'react-toastify';
 import { create } from 'zustand';
 import { Board, getBoard, createColumn, createCard, moveCard } from '../api/boards';
 import { connectSocket, disconnectSocket, getSocket } from '../api/socket';
@@ -9,14 +10,14 @@ interface BoardState {
     socket: ReturnType<typeof connectSocket> | null;
     draggedCards: Record<string, string>;
 
-    loadBoard: (token: string, boardId: string) => Promise<void>;
-    addColumn: (token: string, boardId: string, title: string) => Promise<void>;
-    addCard: (token: string, columnId: string, title: string, description?: string) => Promise<void>;
+    loadBoard: (boardId: string, silent?: boolean) => Promise<void>;
+    addColumn: (boardId: string, title: string) => Promise<void>;
+    addCard: (columnId: string, title: string, description?: string) => Promise<void>;
     moveCardLocally: (cardId: string, sourceColId: string, destColId: string, newIndex: number) => void;
-    syncCardMovement: (token: string, cardId: string, destColId: string, newOrder: number) => Promise<void>;
+    syncCardMovement: (cardId: string, destColId: string, newOrder: number) => Promise<void>;
 
-    setDraggingCard: (token: string, boardId: string, cardId: string, userId: string) => void;
-    clearDraggingCard: (token: string, boardId: string, cardId: string, userId: string) => void;
+    setDraggingCard: (boardId: string, cardId: string, userId: string) => void;
+    clearDraggingCard: (boardId: string, cardId: string, userId: string) => void;
 
     setupSocket: (token: string, boardId: string) => void;
     cleanupSocket: () => void;
@@ -29,23 +30,25 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     socket: null,
     draggedCards: {},
 
-    loadBoard: async (token: string, boardId: string) => {
-        set({ loading: true, error: null });
+    loadBoard: async (boardId: string, silent: boolean = false) => {
+        if (!silent) set({ loading: true, error: null });
         try {
-            const data = await getBoard(token, boardId);
+            const data = await getBoard(boardId);
             set({ board: data, loading: false });
         } catch (err: any) {
-            set({ error: err.message || 'Ошибка загрузки доски', loading: false });
+            const msg = err.response?.data?.message || err.message || 'Ошибка загрузки доски';
+            if (!silent) set({ error: msg, loading: false });
+            else toast.error(msg);
         }
     },
 
-    addColumn: async (token: string, boardId: string, title: string) => {
+    addColumn: async (boardId: string, title: string) => {
         const { board } = get();
         if (!board) return;
 
         try {
             const order = board.columns?.length || 0;
-            const newColumn = await createColumn(token, boardId, title, order);
+            const newColumn = await createColumn(boardId, title, order);
 
             set((state) => ({
                 board: state.board ? {
@@ -54,18 +57,19 @@ export const useBoardStore = create<BoardState>((set, get) => ({
                 } : null
             }));
         } catch (err: any) {
-            console.error('Ошибка создания колонки:', err);
+            const msg = err.response?.data?.message || err.message || 'Ошибка создания колонки';
+            toast.error(msg);
         }
     },
 
-    addCard: async (token: string, columnId: string, title: string, description?: string) => {
+    addCard: async (columnId: string, title: string, description?: string) => {
         const { board } = get();
         if (!board) return;
 
         try {
             const column = board.columns?.find((c) => c.id === columnId);
             const order = column?.cards?.length || 0;
-            const newCard = await createCard(token, columnId, title, description || '', order);
+            const newCard = await createCard(columnId, title, description || '', order);
 
             set((state) => {
                 if (!state.board) return state;
@@ -82,7 +86,8 @@ export const useBoardStore = create<BoardState>((set, get) => ({
                 };
             });
         } catch (err: any) {
-            console.error('Ошибка создания карточки:', err);
+            const msg = err.response?.data?.message || err.message || 'Ошибка создания карточки';
+            toast.error(msg);
         }
     },
 
@@ -112,18 +117,17 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         });
     },
 
-    syncCardMovement: async (token: string, cardId: string, destColId: string, newOrder: number) => {
+    syncCardMovement: async (cardId: string, destColId: string, newOrder: number) => {
         const socket = getSocket();
 
         try {
             if (socket && socket.connected) {
                 await new Promise((resolve, reject) => {
                     socket.emit('moveCard', {
-                        token,
                         cardId,
                         newColumnId: destColId,
                         newOrder,
-                    }, (response: any) => {
+                    }, (response: { success: boolean; message?: string }) => {
                         if (response?.success) {
                             resolve(true);
                         } else {
@@ -133,28 +137,28 @@ export const useBoardStore = create<BoardState>((set, get) => ({
                     setTimeout(resolve, 500);
                 });
             } else {
-                await moveCard(token, cardId, destColId, newOrder);
+                await moveCard(cardId, destColId, newOrder);
             }
         } catch (err) {
             console.error('Ошибка синхронизации карточки (rollback required):', err);
             const { board, loadBoard } = get();
             if (board) {
-                await loadBoard(token, board.id);
+                await loadBoard(board.id);
             }
         }
     },
 
-    setDraggingCard: (token: string, boardId: string, cardId: string, userId: string) => {
+    setDraggingCard: (boardId: string, cardId: string, userId: string) => {
         const socket = getSocket();
         if (socket && socket.connected) {
-            socket.emit('cardDragging', { token, boardId, cardId, userId });
+            socket.emit('cardDragging', { boardId, cardId, userId });
         }
     },
 
-    clearDraggingCard: (token: string, boardId: string, cardId: string, userId: string) => {
+    clearDraggingCard: (boardId: string, cardId: string, userId: string) => {
         const socket = getSocket();
         if (socket && socket.connected) {
-            socket.emit('cardDragEnd', { token, boardId, cardId, userId });
+            socket.emit('cardDragEnd', { boardId, cardId, userId });
         }
     },
 
@@ -165,11 +169,11 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         const socket = connectSocket(token, boardId);
 
         socket.on('cardMoved', () => {
-            get().loadBoard(token, boardId);
+            get().loadBoard(boardId, true);
         });
 
         socket.on('cardUpdated', () => {
-            get().loadBoard(token, boardId);
+            get().loadBoard(boardId, true);
         });
 
         socket.on('userDraggingCard', ({ cardId, userId }: { cardId: string, userId: string }) => {
@@ -187,19 +191,19 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         });
 
         socket.on('columnCreated', () => {
-            get().loadBoard(token, boardId);
+            get().loadBoard(boardId, true);
         });
 
         socket.on('cardCreated', () => {
-            get().loadBoard(token, boardId);
+            get().loadBoard(boardId, true);
         });
 
         socket.on('columnDeleted', () => {
-            get().loadBoard(token, boardId);
+            get().loadBoard(boardId, true);
         });
 
         socket.on('cardDeleted', () => {
-            get().loadBoard(token, boardId);
+            get().loadBoard(boardId, true);
         });
 
         set({ socket });

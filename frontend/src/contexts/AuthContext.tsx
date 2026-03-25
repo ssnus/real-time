@@ -1,5 +1,7 @@
+import { AxiosError } from 'axios';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from 'react-toastify';
+import api from '../api';
 
 interface User {
   id: string;
@@ -38,14 +40,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const res = await fetch('http://localhost:3000/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      
-      if (!res.ok) throw new Error(data.message);
+      const res = await api.post('/auth/login', { email, password });
+      const data = res.data;
       
       localStorage.setItem('token', data.accessToken);
       localStorage.setItem('user', JSON.stringify(data.user));
@@ -53,22 +49,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(data.user);
       toast.success('Добро пожаловать! 🎉');
       return true;
-    } catch (err: any) {
-      toast.error(err.message || 'Ошибка входа');
+    } catch (err) {
+      const axiosError = err as AxiosError<{ message: string | string[] }>;
+      const message = axiosError.response?.data?.message;
+      const formattedMessage = Array.isArray(message) ? message.join(', ') : message || axiosError.message || 'Ошибка входа';
+      toast.error(formattedMessage);
       return false;
     }
   };
 
   const register = async (email: string, password: string, name?: string): Promise<boolean> => {
     try {
-      const res = await fetch('http://localhost:3000/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name }),
-      });
-      const data = await res.json();
-      
-      if (!res.ok) throw new Error(data.message);
+      const res = await api.post('/auth/register', { email, password, name });
+      const data = res.data;
       
       localStorage.setItem('token', data.accessToken);
       localStorage.setItem('user', JSON.stringify(data.user));
@@ -76,8 +69,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(data.user);
       toast.success('Регистрация успешна! 🚀');
       return true;
-    } catch (err: any) {
-      toast.error(err.message || 'Ошибка регистрации');
+    } catch (err) {
+      const axiosError = err as AxiosError<{ message: string | string[] }>;
+      const message = axiosError.response?.data?.message;
+      const formattedMessage = Array.isArray(message) ? message.join(', ') : message || axiosError.message || 'Ошибка регистрации';
+      toast.error(formattedMessage);
       return false;
     }
   };
