@@ -1,26 +1,21 @@
-import { Injectable, NotFoundException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
-import { PrismaService } from 'prisma/prisma.service';
+import { Injectable, Inject, forwardRef, ForbiddenException } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCardDto } from './dto/create-card.dto';
 import { UpdateCardDto } from './dto/update-card.dto';
 import { BoardGateway } from '../board/board.gateway';
+import { AccessControlService } from '../access/access-control.service';
 
 @Injectable()
 export class CardService {
     constructor(
         private prisma: PrismaService,
+        private accessControl: AccessControlService,
         @Inject(forwardRef(() => BoardGateway))
         private boardGateway: BoardGateway
     ) { }
 
     async create(userId: string, columnId: string, dto: CreateCardDto) {
-        const column = await this.prisma.column.findUnique({
-            where: { id: columnId },
-            include: { board: true },
-        });
-
-        if (!column || column.board.ownerId !== userId) {
-            throw new ForbiddenException('Доступ запрещён');
-        }
+        const column = await this.accessControl.validateColumnAccess(userId, columnId);
 
         const card = await this.prisma.card.create({
             data: {
@@ -41,14 +36,7 @@ export class CardService {
     }
 
     async findAll(userId: string, columnId: string) {
-        const column = await this.prisma.column.findUnique({
-            where: { id: columnId },
-            include: { board: true },
-        });
-
-        if (!column || column.board.ownerId !== userId) {
-            throw new ForbiddenException('Доступ запрещён');
-        }
+        await this.accessControl.validateColumnAccess(userId, columnId);
 
         return this.prisma.card.findMany({
             where: { columnId },
@@ -57,14 +45,7 @@ export class CardService {
     }
 
     async update(userId: string, id: string, dto: UpdateCardDto) {
-        const card = await this.prisma.card.findUnique({
-            where: { id },
-            include: { column: { include: { board: true } } },
-        });
-
-        if (!card || card.column.board.ownerId !== userId) {
-            throw new ForbiddenException('Доступ запрещён');
-        }
+        const card = await this.accessControl.validateCardAccess(userId, id);
 
         return this.prisma.card.update({
             where: { id },
@@ -77,14 +58,7 @@ export class CardService {
     }
 
     async remove(userId: string, id: string) {
-        const card = await this.prisma.card.findUnique({
-            where: { id },
-            include: { column: { include: { board: true } } },
-        });
-
-        if (!card || card.column.board.ownerId !== userId) {
-            throw new ForbiddenException('Доступ запрещён');
-        }
+        const card = await this.accessControl.validateCardAccess(userId, id);
 
         await this.prisma.card.delete({ where: { id } });
 
@@ -99,21 +73,10 @@ export class CardService {
     }
 
     async moveCard(userId: string, cardId: string, newColumnId: string, newOrder: number) {
-        const card = await this.prisma.card.findUnique({
-            where: { id: cardId },
-            include: { column: { include: { board: true } } },
-        });
+        const card = await this.accessControl.validateCardAccess(userId, cardId);
+        const newColumn = await this.accessControl.validateColumnAccess(userId, newColumnId);
 
-        if (!card || card.column.board.ownerId !== userId) {
-            throw new ForbiddenException('Access denied');
-        }
-
-        const newColumn = await this.prisma.column.findUnique({
-            where: { id: newColumnId },
-            include: { board: true },
-        });
-
-        if (!newColumn || newColumn.boardId !== card.column.boardId) {
+        if (newColumn.boardId !== card.column.boardId) {
             throw new ForbiddenException('Cannot move card to this column');
         }
 

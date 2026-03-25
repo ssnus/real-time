@@ -6,9 +6,9 @@ services:
     container_name: kanban-db
     restart: always
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: kanban_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5433:5432"
     volumes:
@@ -23,8 +23,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://user:password@postgres:5432/kanban_db?schema=public
-      - JWT_SECRET=super-secret-key-123
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
     depends_on:
       - postgres
 
@@ -33,11 +33,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=http://localhost:3000
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:3000}
     container_name: kanban-frontend
     restart: always
     ports:
-      # Пробрасываем 80 порт из контейнера на 8080 хоста (чтобы не нужен был sudo)
       - "8080:80"
     depends_on:
       - backend

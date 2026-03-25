@@ -5,12 +5,17 @@ import { AuthModule } from './auth/auth.module';
 import { BoardModule } from './board/board.module';
 import { ColumnModule } from './column/column.module';
 import { CardModule } from './card/card.module';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
   imports: [
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 20,
+    }]),
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: 'env',
+      envFilePath: '.env',
     }),
     PrismaModule,
     AuthModule,

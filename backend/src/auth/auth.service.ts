@@ -50,7 +50,7 @@ export class AuthService {
         return this.generateTokens(user);
     }
 
-    private generateTokens(user: any) {
+  private async generateTokens(user: { id: string; email: string; name?: string | null }) {
         const payload = { sub: user.id, email: user.email };
 
         return {

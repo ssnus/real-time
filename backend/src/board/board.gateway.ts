@@ -12,6 +12,7 @@ import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
+import { AccessControlService } from '../access/access-control.service';
 
 @WebSocketGateway({
   cors: {
@@ -29,6 +30,7 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private accessControl: AccessControlService,
   ) { }
 
   afterInit(server: Server) {
@@ -36,7 +38,25 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   }
 
   handleConnection(client: Socket) {
-    this.logger.log(`Client connected: ${client.id}`);
+    try {
+      const token = client.handshake.auth?.token || client.handshake.query?.token;
+      
+      if (!token) {
+        this.logger.error(`No token provided for client: ${client.id}`);
+        client.disconnect();
+        return;
+      }
+
+      const payload = this.jwtService.verify(token, {
+        secret: process.env.JWT_SECRET,
+      });
+
+      client.data.user = payload;
+      this.logger.log(`Client connected: ${client.id}, User: ${payload.sub}`);
+    } catch (error) {
+      this.logger.error(`Connection error for ${client.id}: ${error.message}`);
+      client.disconnect();
+    }
   }
 
   handleDisconnect(client: Socket) {
@@ -46,21 +66,11 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   @SubscribeMessage('joinBoard')
   async handleJoinBoard(
     @ConnectedSocket() client: Socket,
-    @MessageBody() body: { boardId: string; token: string }
+    @MessageBody() body: { boardId: string }
   ) {
     try {
-      const payload = this.jwtService.verify(body.token, {
-        secret: process.env.JWT_SECRET,
-      });
-
-      const board = await this.prisma.board.findUnique({
-        where: { id: body.boardId, ownerId: payload.sub },
-      });
-
-      if (!board) {
-        client.emit('error', { message: 'Access denied to this board' });
-        return;
-      }
+      const user = client.data.user;
+      await this.accessControl.validateBoardAccess(user.sub, body.boardId);
 
       client.join(`board_${body.boardId}`);
       this.logger.log(`Client ${client.id} joined room: board_${body.boardId}`);
@@ -69,7 +79,7 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
       return { success: true };
     } catch (error) {
       this.logger.error('Join board error:', error);
-      client.emit('error', { message: 'Invalid token or board not found' });
+      client.emit('error', { message: 'Failed to join board' });
       return { success: false };
     }
   }
@@ -78,25 +88,20 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   async handleMoveCard(
     @ConnectedSocket() client: Socket,
     @MessageBody() body: {
-      token: string;
       cardId: string;
       newColumnId: string;
       newOrder: number;
     }
   ) {
     try {
-      const payload = this.jwtService.verify(body.token, {
-        secret: process.env.JWT_SECRET,
-      });
+      const user = client.data.user;
 
-      const card = await this.prisma.card.findUnique({
-        where: { id: body.cardId },
-        include: { column: { include: { board: true } } },
-      });
+      // Используем централизованный сервис для проверки доступа
+      const card = await this.accessControl.validateCardAccess(user.sub, body.cardId);
+      const newColumn = await this.accessControl.validateColumnAccess(user.sub, body.newColumnId);
 
-      if (!card || card.column.board.ownerId !== payload.sub) {
-        client.emit('error', { message: 'Access denied' });
-        return { success: false };
+      if (card.column.boardId !== newColumn.boardId) {
+        throw new Error('Cannot move card to another board');
       }
 
       const updatedCard = await this.prisma.card.update({
@@ -109,15 +114,15 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
 
       this.server.to(`board_${card.column.boardId}`).emit('cardMoved', {
         card: updatedCard,
-        movedBy: payload.sub,
+        movedBy: user.sub,
         timestamp: new Date().toISOString(),
       });
 
-      this.logger.log(`Card ${body.cardId} moved by user ${payload.sub}`);
+      this.logger.log(`Card ${body.cardId} moved by user ${user.sub}`);
       return { success: true, card: updatedCard };
     } catch (error) {
-      this.logger.error('Move card error:', error);
-      client.emit('error', { message: 'Failed to move card' });
+      this.logger.error('Move card error:', error.message);
+      client.emit('error', { message: error.message || 'Failed to move card' });
       return { success: false };
     }
   }
@@ -126,26 +131,14 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   async handleUpdateCard(
     @ConnectedSocket() client: Socket,
     @MessageBody() body: {
-      token: string;
       cardId: string;
       title?: string;
       description?: string;
     }
   ) {
     try {
-      const payload = this.jwtService.verify(body.token, {
-        secret: process.env.JWT_SECRET,
-      });
-
-      const card = await this.prisma.card.findUnique({
-        where: { id: body.cardId },
-        include: { column: { include: { board: true } } },
-      });
-
-      if (!card || card.column.board.ownerId !== payload.sub) {
-        client.emit('error', { message: 'Access denied' });
-        return { success: false };
-      }
+      const user = client.data.user;
+      const card = await this.accessControl.validateCardAccess(user.sub, body.cardId);
 
       const updatedCard = await this.prisma.card.update({
         where: { id: body.cardId },
@@ -155,10 +148,9 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
         },
       });
 
-
       this.server.to(`board_${card.column.boardId}`).emit('cardUpdated', {
         card: updatedCard,
-        updatedBy: payload.sub,
+        updatedBy: user.sub,
         timestamp: new Date().toISOString(),
       });
 
@@ -174,47 +166,29 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   async handleCardDragging(
     @ConnectedSocket() client: Socket,
     @MessageBody() body: {
-      token: string;
       boardId: string;
       cardId: string;
       userId: string;
     }
   ) {
-    try {
-      this.jwtService.verify(body.token, {
-        secret: process.env.JWT_SECRET,
-      });
-
-      client.to(`board_${body.boardId}`).emit('userDraggingCard', {
-        cardId: body.cardId,
-        userId: body.userId,
-      });
-    } catch (error) {
-      client.emit('error', { message: 'Invalid token' });
-    }
+    client.to(`board_${body.boardId}`).emit('userDraggingCard', {
+      cardId: body.cardId,
+      userId: body.userId,
+    });
   }
 
   @SubscribeMessage('cardDragEnd')
   async handleCardDragEnd(
     @ConnectedSocket() client: Socket,
     @MessageBody() body: {
-      token: string;
       boardId: string;
       cardId: string;
       userId: string;
     }
   ) {
-    try {
-      this.jwtService.verify(body.token, {
-        secret: process.env.JWT_SECRET,
-      });
-
-      client.to(`board_${body.boardId}`).emit('userStoppedDragging', {
-        cardId: body.cardId,
-        userId: body.userId,
-      });
-    } catch (error) {
-      client.emit('error', { message: 'Invalid token' });
-    }
+    client.to(`board_${body.boardId}`).emit('userStoppedDragging', {
+      cardId: body.cardId,
+      userId: body.userId,
+    });
   }
 }
