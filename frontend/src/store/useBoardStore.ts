@@ -1,13 +1,12 @@
 import { toast } from 'react-toastify';
 import { create } from 'zustand';
 import { Board, getBoard, createColumn, createCard, moveCard } from '../api/boards';
-import { connectSocket, disconnectSocket, getSocket } from '../api/socket';
+import { getSocket } from '../api/socket';
 
 interface BoardState {
     board: Board | null;
     loading: boolean;
     error: string | null;
-    socket: ReturnType<typeof connectSocket> | null;
     draggedCards: Record<string, string>;
 
     loadBoard: (boardId: string, silent?: boolean) => Promise<void>;
@@ -18,16 +17,12 @@ interface BoardState {
 
     setDraggingCard: (boardId: string, cardId: string, userId: string) => void;
     clearDraggingCard: (boardId: string, cardId: string, userId: string) => void;
-
-    setupSocket: (token: string, boardId: string) => void;
-    cleanupSocket: () => void;
 }
 
 export const useBoardStore = create<BoardState>((set, get) => ({
     board: null,
     loading: true,
     error: null,
-    socket: null,
     draggedCards: {},
 
     loadBoard: async (boardId: string, silent: boolean = false) => {
@@ -161,67 +156,4 @@ export const useBoardStore = create<BoardState>((set, get) => ({
             socket.emit('cardDragEnd', { boardId, cardId, userId });
         }
     },
-
-    setupSocket: (token: string, boardId: string) => {
-        const currentSocket = get().socket;
-        if (currentSocket) return;
-
-        const socket = connectSocket(token, boardId);
-
-        socket.on('cardMoved', () => {
-            get().loadBoard(boardId, true);
-        });
-
-        socket.on('cardUpdated', () => {
-            get().loadBoard(boardId, true);
-        });
-
-        socket.on('userDraggingCard', ({ cardId, userId }: { cardId: string, userId: string }) => {
-            set((state) => ({
-                draggedCards: { ...state.draggedCards, [cardId]: userId }
-            }));
-        });
-
-        socket.on('userStoppedDragging', ({ cardId }: { cardId: string }) => {
-            set((state) => {
-                const newDragged = { ...state.draggedCards };
-                delete newDragged[cardId];
-                return { draggedCards: newDragged };
-            });
-        });
-
-        socket.on('columnCreated', () => {
-            get().loadBoard(boardId, true);
-        });
-
-        socket.on('cardCreated', () => {
-            get().loadBoard(boardId, true);
-        });
-
-        socket.on('columnDeleted', () => {
-            get().loadBoard(boardId, true);
-        });
-
-        socket.on('cardDeleted', () => {
-            get().loadBoard(boardId, true);
-        });
-
-        set({ socket });
-    },
-
-    cleanupSocket: () => {
-        const { socket } = get();
-        if (socket) {
-            socket.off('cardMoved');
-            socket.off('cardUpdated');
-            socket.off('userDraggingCard');
-            socket.off('userStoppedDragging');
-            socket.off('columnCreated');
-            socket.off('cardCreated');
-            socket.off('columnDeleted');
-            socket.off('cardDeleted');
-            disconnectSocket();
-            set({ socket: null, draggedCards: {} });
-        }
-    }
 }));

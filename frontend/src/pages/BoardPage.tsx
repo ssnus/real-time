@@ -5,6 +5,8 @@ import { useBoardStore } from '../store/useBoardStore';
 import { Column as ColumnComponent } from '../components/Column';
 import { BoardHeader } from '../components/board/BoardHeader';
 import { NewColumnForm } from '../components/board/NewColumnForm';
+import { useBoardDnd } from '../hooks/useBoardDnd';
+import { useBoardSocket } from '../hooks/useBoardSocket';
 
 import {
     DndContext,
@@ -15,8 +17,6 @@ import {
     DragOverlay,
 } from '@dnd-kit/core';
 import { Card as CardComponent } from '../components/Card';
-
-import { useBoardDnd } from '../hooks/useBoardDnd';
 
 export const BoardPage = () => {
     const { boardId } = useParams<{ boardId: string }>();
@@ -29,20 +29,14 @@ export const BoardPage = () => {
         error,
         loadBoard,
         addColumn,
-        setupSocket,
-        cleanupSocket
     } = useBoardStore();
 
     const { activeCard, onDragStart, onDragOver, onDragEnd } = useBoardDnd(boardId, token);
+    useBoardSocket(token, boardId);
 
     useEffect(() => {
         if (token && boardId) {
             loadBoard(boardId);
-            setupSocket(token, boardId);
-
-            return () => {
-                cleanupSocket();
-            };
         }
     }, [token, boardId]);
 

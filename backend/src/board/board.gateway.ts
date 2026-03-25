@@ -96,7 +96,6 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     try {
       const user = client.data.user;
 
-      // Используем централизованный сервис для проверки доступа
       const card = await this.accessControl.validateCardAccess(user.sub, body.cardId);
       const newColumn = await this.accessControl.validateColumnAccess(user.sub, body.newColumnId);
 

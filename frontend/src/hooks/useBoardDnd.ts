@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { DragStartEvent, DragOverEvent, DragEndEvent } from '@dnd-kit/core';
 import { useBoardStore } from '../store/useBoardStore';
+import { Card } from '../api/boards';
 
 export const useBoardDnd = (boardId: string | undefined, token: string | null) => {
     const { board, moveCardLocally, syncCardMovement } = useBoardStore();
-    const [activeCard, setActiveCard] = useState<any | null>(null);
+    const [activeCard, setActiveCard] = useState<Card | null>(null);
 
     const onDragStart = (event: DragStartEvent) => {
         const { active } = event;

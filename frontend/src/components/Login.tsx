@@ -24,7 +24,6 @@ export const Login = () => {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="max-w-md w-full glass rounded-3xl p-8 shadow-2xl overflow-hidden relative border border-white/20">
-        {/* Декоративные круги */}
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-blue-500/20 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"></div>
 

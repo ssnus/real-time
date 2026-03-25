@@ -41,7 +41,7 @@ export const BoardsPage = () => {
       const message = (err as any)?.response?.data?.message;
       const formattedMessage = Array.isArray(message) ? message.join(', ') : message || (err as any)?.message || 'Ошибка создания доски';
       toast.error(formattedMessage);
-      throw err; // Пробрасываем ошибку в форму, чтобы она прекратила loading
+      throw err; // re-throw so the form can stop its loading state
     }
   };
 
@@ -51,7 +51,6 @@ export const BoardsPage = () => {
 
   return (
     <div className="container mx-auto p-4 sm:p-8 min-h-screen">
-      {/* Декоративные фоновые элементы */}
       <div className="fixed top-0 left-0 w-full h-full -z-10 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px]"></div>
